@@ -53,17 +53,17 @@ func (s *Server) Serve(l net.Listener) error {
 }
 
 // TODO: smell: break down, optimise and test
-func (s *Server) serve(conn net.Conn) {
-	defer conn.Close()
+func (s *Server) serve(local net.Conn) {
+	defer local.Close()
 
 	// TODO: optimisation: use sync.Pool to reuse client buffers
 	rx := make([]byte, s.BufferSize)
-	//tx := make([]byte, s.BufferSize)
+	tx := make([]byte, s.BufferSize)
 
 	var o int
 	var hn []byte
 	for {
-		n, err := conn.Read(rx[o:])
+		n, err := local.Read(rx[o:])
 		if err != nil {
 			log.Println("error: read:", err)
 			return
@@ -95,4 +95,25 @@ func (s *Server) serve(conn net.Conn) {
 		log.Println("error: backend: upstream:", err)
 		return
 	}
+
+	remote, err := net.Dial("tcp", upstream[0])
+	if err != nil {
+		log.Println("error: remote:", err)
+		return
+	}
+	defer remote.Close()
+
+	_, err = remote.Write(rx[:o])
+	if err != nil {
+		log.Println("error: write:", err)
+		return
+	}
+
+	err = ProxyBuffer(remote, local, rx, tx)
+	if err != nil {
+		log.Println("error: proxy:", err)
+		return
+	}
+
+	log.Println("info: proxy: complete")
 }

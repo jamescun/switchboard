@@ -1,4 +1,4 @@
-<img src="http://i.imgur.com/Y7OikrQ.png" width="545" height="100" />
+<img src="http://i.imgur.com/pmUVbZk.png" width="400" height="84" />
 
 Switchboard uses TLS Server Name Indication (SNI) to provide service discovery and load balancing to almost any protocol or service.
 

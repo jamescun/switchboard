@@ -1,6 +1,7 @@
 package server
 
 import (
+	"io"
 	"log"
 	"net"
 	"time"
@@ -60,34 +61,14 @@ func (s *Server) serve(local net.Conn) {
 	rx := make([]byte, s.BufferSize)
 	tx := make([]byte, s.BufferSize)
 
-	var o int
-	var hn []byte
-	for {
-		n, err := local.Read(rx[o:])
-		if err != nil {
-			log.Println("error: read:", err)
-			return
-		}
-		o += n
-		if o >= len(rx) {
-			log.Println("error: read: buffer full")
-			return
-		}
-
-		hn, err = s.Match(rx)
-		if err == match.ErrNone {
-			log.Println("warning: match: no match, retrying")
-			continue
-		} else if err != nil {
-			log.Println("error: match:", err)
-			return
-		}
-
-		log.Printf("info: match: '%s'\n", hn)
-		break
+	hostname, n, err := s.match(local, rx)
+	if err == match.ErrNone || err == io.ErrShortBuffer {
+		log.Println("warning: match: no match found")
+		return
 	}
+	log.Printf("info: match: '%s'\n", hostname)
 
-	upstream, err := s.Backend.Upstream(hn)
+	upstream, err := s.Backend.Upstream(hostname)
 	if err == backend.ErrNone || len(upstream) < 1 {
 		log.Println("warning: backend: upstream: no match")
 		return
@@ -103,17 +84,53 @@ func (s *Server) serve(local net.Conn) {
 	}
 	defer remote.Close()
 
-	_, err = remote.Write(rx[:o])
-	if err != nil {
-		log.Println("error: write:", err)
-		return
-	}
-
-	err = ProxyBuffer(remote, local, rx, tx)
+	err = s.proxy(remote, local, rx, tx, n)
 	if err != nil {
 		log.Println("error: proxy:", err)
-		return
+	}
+}
+
+// return the hostname matched and the number of bytes read from reader into rx buffer.
+// hostname is a byte slice of the initial packet.
+func (s *Server) match(r io.Reader, rx []byte) (hostname []byte, n int, err error) {
+	for {
+		if n >= len(rx) {
+			// buffer was not big enough to match hostname
+			err = io.ErrShortBuffer
+			return
+		}
+
+		j, rerr := r.Read(rx[n:])
+		if rerr != nil {
+			err = rerr
+			return
+		}
+		n += j
+
+		// use math.Match function to extract hostname from initial packet(s)
+		hostname, rerr = s.Match(rx[:n])
+		if rerr == match.ErrNone {
+			// match not found, fill buffer some more
+			continue
+		} else if rerr != nil {
+			err = rerr
+			return
+		}
+
+		break
 	}
 
-	log.Println("info: proxy: complete")
+	return
+}
+
+// bi-directional proxy between local and remote using rx/tx buffers, retransmitting the
+// initial packet to the remote first.
+func (s *Server) proxy(remote, local io.ReadWriter, rx, tx []byte, n int) error {
+	// send initial packet to upstream
+	_, err := remote.Write(rx[:n])
+	if err != nil {
+		return err
+	}
+
+	return ProxyBuffer(remote, local, rx, tx)
 }

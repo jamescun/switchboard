@@ -42,7 +42,7 @@ var App = &cli.App{
 				cli.DurationFlag{
 					Name:   "cache",
 					Value:  1 * time.Minute,
-					Usage:  "timeout for caching service discovery results",
+					Usage:  "ttl for caching service discovery results",
 					EnvVar: "SWITCHBOARD_CACHE",
 				},
 				cli.StringFlag{

@@ -86,7 +86,7 @@ var App = &cli.App{
 }
 
 func ServerStatic(c *cli.Context) {
-	bk := backend.Static{
+	bk := &backend.Static{
 		Upstreams: c.StringSlice("upstream"),
 	}
 
@@ -99,6 +99,18 @@ func Server(c *cli.Context, bk backend.Backend) {
 		Backend:    bk,
 		BufferSize: c.GlobalInt("buffer-size"),
 	}
+
+	err := bk.Start()
+	if err != nil {
+		log.Fatalln("fatal: backend: start:", err)
+		return
+	}
+	defer func() {
+		err := bk.Stop()
+		if err != nil {
+			log.Println("error: backend: stop:", err)
+		}
+	}()
 
 	ln, err := net.Listen("tcp", c.GlobalString("listen"))
 	if err != nil {

@@ -96,7 +96,7 @@ func (s *Server) serve(local net.Conn) {
 		return
 	}
 
-	remote, err := net.Dial("tcp", upstream[0])
+	remote, err := net.Dial("tcp", upstream[0].Addr())
 	if err != nil {
 		log.Println("error: remote:", err)
 		return

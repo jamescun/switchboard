@@ -4,6 +4,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/jamescun/switchboard/backend"
@@ -14,6 +15,8 @@ type Server struct {
 	Match      match.Match
 	Backend    backend.Backend
 	BufferSize int
+
+	buf sync.Pool
 }
 
 // Serve accepts incomming connections on the Listener l, creating a
@@ -23,6 +26,8 @@ type Server struct {
 // Serve always returns a non-nil error.
 func (s *Server) Serve(l net.Listener) error {
 	defer l.Close()
+
+	s.initBufPool()
 
 	var tmpDelay time.Duration // backoff timeout for Accept() failures
 	for {
@@ -53,15 +58,28 @@ func (s *Server) Serve(l net.Listener) error {
 	return nil
 }
 
-// TODO: smell: break down, optimise and test
-func (s *Server) serve(local net.Conn) {
+// initialise re-usable client buffer pool
+func (s *Server) initBufPool() {
+	s.buf = sync.Pool{
+		New: func() interface{} {
+			b := make([]byte, s.BufferSize)
+			return &b
+		},
+	}
+}
+
+// takes a new connection from a listener, reads the initial packet, matches host
+// and dispatches to an upstream.
+func (s *Server) serve(local io.ReadWriteCloser) {
 	defer local.Close()
 
-	// TODO: optimisation: use sync.Pool to reuse client buffers
-	rx := make([]byte, s.BufferSize)
-	tx := make([]byte, s.BufferSize)
+	// get re-usable buffers for matching and proxying
+	rx := s.buf.Get().(*[]byte)
+	tx := s.buf.Get().(*[]byte)
+	defer s.buf.Put(rx)
+	defer s.buf.Put(tx)
 
-	hostname, n, err := s.match(local, rx)
+	hostname, n, err := s.match(local, *rx)
 	if err == match.ErrNone || err == io.ErrShortBuffer {
 		log.Println("warning: match: no match found")
 		return
@@ -84,7 +102,7 @@ func (s *Server) serve(local net.Conn) {
 	}
 	defer remote.Close()
 
-	err = s.proxy(remote, local, rx, tx, n)
+	err = s.proxy(remote, local, *rx, *tx, n)
 	if err != nil {
 		log.Println("error: proxy:", err)
 	}

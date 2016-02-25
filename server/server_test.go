@@ -10,6 +10,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestInitBufPool(t *testing.T) {
+	s := &Server{}
+	s.initBufPool()
+	assert.NotNil(t, s.buf.New)
+}
+
 func TestServerMatch(t *testing.T) {
 	s := &Server{Match: match.Http}
 

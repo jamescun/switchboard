@@ -7,7 +7,8 @@ import (
 )
 
 var (
-	ErrNone = errors.New("no match found")
+	ErrNone       = errors.New("no match found")
+	ErrShortBytes = errors.New("short bytes")
 )
 
 // Match is a function which implements the extraction of a hostname from a received packet.

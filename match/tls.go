@@ -35,6 +35,7 @@ func TLS(pkt []byte) (hostname []byte, err error) {
 	if err != nil {
 		return
 	} else if n == 0 {
+		err = ErrNone
 		return
 	} else if len(pkt) < n {
 		err = ErrShortBytes
@@ -66,6 +67,7 @@ func TLS(pkt []byte) (hostname []byte, err error) {
 		}
 	}
 
+	err = ErrNone
 	return
 }
 

@@ -56,6 +56,9 @@ func TestTLS(t *testing.T) {
 	_, err = TLS(testTLSPacket[:43])
 	assert.Equal(t, ErrShortBytes, err)
 
+	_, err = TLS(append(copySlice(testTLSPacket[:43]), byte(0x09)))
+	assert.Equal(t, ErrShortBytes, err)
+
 	_, err = TLS(testTLSPacket[:45])
 	assert.Equal(t, ErrShortBytes, err)
 
@@ -64,6 +67,9 @@ func TestTLS(t *testing.T) {
 
 	_, err = TLS(testTLSPacket[:53])
 	assert.Equal(t, ErrShortBytes, err)
+
+	_, err = TLS(append(copySlice(testTLSPacket[:53]), byte(0x00)))
+	assert.Equal(t, ErrNone, err)
 
 	_, err = TLS(testTLSPacket[:54])
 	assert.Equal(t, ErrShortBytes, err)
@@ -195,4 +201,10 @@ func BenchmarkSkipUint16(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		skipUint16(p)
 	}
+}
+
+func copySlice(b []byte) []byte {
+	n := make([]byte, len(b))
+	copy(n, b)
+	return n
 }
